@@ -1,8 +1,8 @@
 const express = require('express');
-const fs = require('fs').promises;
 const path = require('path');
 const cors = require('cors');
 const fs = require('fs');
+const fsp = require('fs').promises; // alias pour la version async
 const apeIdccPath = path.join(__dirname, 'data', 'ape_idcc.json');
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -32,7 +32,7 @@ app.get('/api/convention', async (req, res) => {
   for (const file of SIRET_FILES) {
     const fullPath = path.join(__dirname, 'data', file);
     try {
-      const content = await fs.readFile(fullPath, 'utf-8');
+      const content = await fsp.readFile(fullPath, 'utf-8');
       const arr = JSON.parse(content);
       const found = arr.find(obj => String(obj.SIRET).padStart(14, '0') === siretKey);
       if (found) {
@@ -55,6 +55,7 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
   console.log('API SIRET-CC démarrée sur port', PORT);
 });
+
 // Correspondance IDCC par code APE
 app.get('/api/convention/by-ape', (req, res) => {
   const ape = (req.query.ape || '').trim().toUpperCase();

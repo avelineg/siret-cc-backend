@@ -24,6 +24,15 @@ try {
 // Active CORS pour le frontend
 app.use(cors());
 
+/**
+ * Helper pour extraire le code APE "propre" (5 caractères en majuscules)
+ * à partir d'une entrée qui pourrait ressembler à "6920Z (Activités comptables)"
+ */
+function extractApeCode(rawApe) {
+  if (!rawApe) return '';
+  return String(rawApe).trim().split(/[ (]/)[0].toUpperCase();
+}
+
 app.get('/api/convention', async (req, res) => {
   const { siret, ape } = req.query;
   if (!siret) {
@@ -47,8 +56,23 @@ app.get('/api/convention', async (req, res) => {
       continue;
     }
   }
-  // SIRET non trouvé
-  console.warn(`[API] SIRET ${siretKey} non trouvé dans aucun fichier. Fallback APE possible ? (APE transmis: ${ape || 'non transmis'})`);
+  // SIRET non trouvé, fallback APE si transmis
+  if (ape) {
+    const apeClean = extractApeCode(ape);
+    const results = apeIdccTable.filter(row => row['Code APE'] === apeClean);
+    if (results.length) {
+      console.log(`[API] Fallback APE : code ${apeClean} → ${results.length} correspondance(s) IDCC`);
+      return res.json({
+        fallback: true,
+        codeAPE: apeClean,
+        idcc: results.map(row => row['IDCC']),
+        conventions: results,
+      });
+    }
+    console.log(`[API] Fallback APE : aucun IDCC trouvé pour le code APE ${apeClean}`);
+    return res.status(404).json({ error: 'Aucune convention trouvée pour ce SIRET ou ce code APE' });
+  }
+  console.warn(`[API] SIRET ${siretKey} non trouvé dans aucun fichier. Fallback APE impossible (APE non transmis)`);
   return res.status(404).json({ error: 'Aucune convention trouvée pour ce SIRET' });
 });
 
@@ -63,7 +87,7 @@ app.listen(PORT, () => {
 
 // Correspondance IDCC par code APE
 app.get('/api/convention/by-ape', (req, res) => {
-  const ape = (req.query.ape || '').trim().toUpperCase();
+  const ape = extractApeCode(req.query.ape || '');
   if (!ape) {
     console.warn('[API] /api/convention/by-ape appelé sans APE');
     return res.status(400).json({ error: 'APE manquant' });

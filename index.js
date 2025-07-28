@@ -2,7 +2,8 @@ const express = require('express');
 const fs = require('fs').promises;
 const path = require('path');
 const cors = require('cors');
-
+const fs = require('fs');
+const apeIdccPath = path.join(__dirname, 'data', 'ape_idcc.json');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -13,7 +14,12 @@ const SIRET_FILES = [
   'json_3_siret_9999.json',
   'json_4_siret_9999.json',
 ];
-
+let apeIdccTable = [];
+try {
+  apeIdccTable = JSON.parse(fs.readFileSync(apeIdccPath, 'utf8'));
+} catch(e) {
+  console.error('Impossible de charger la table APE→IDCC :', e);
+}
 // Active CORS pour le frontend
 app.use(cors());
 
@@ -48,4 +54,17 @@ app.get('/', (req, res) => {
 
 app.listen(PORT, () => {
   console.log('API SIRET-CC démarrée sur port', PORT);
+});
+// Correspondance IDCC par code APE
+app.get('/api/convention/by-ape', (req, res) => {
+  const ape = (req.query.ape || '').trim().toUpperCase();
+  if (!ape) return res.status(400).json({ error: 'APE manquant' });
+
+  // Plusieurs correspondances possibles pour un APE
+  const results = apeIdccTable.filter(row => row['Code APE'] === ape);
+  if (!results.length)
+    return res.status(404).json({ error: 'Pas de correspondance IDCC trouvée pour ce code APE' });
+
+  // Renvoie tout le tableau (tous les IDCC potentiels pour ce code APE)
+  res.json(results);
 });
